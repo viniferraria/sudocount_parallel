@@ -264,73 +264,76 @@ static void display(sudoku *s) {
 
 static int search (sudoku *s, int status) {
     
+    if (!status) return status;
+
     int i, j, k;
-    #pragma omp parallel private(i, j, k)
+    int solved = 1;
+    #pragma omp parallel
     {
-
-        if (!status) return status;
-        
-
-        int solved = 1;
-        #pragma omp for
-        for (i = 0; solved && i < s->dim; i++) 
-            for (j = 0; j < s->dim; j++) 
+        #pragma omp for collapse(2)
+        for (i = 0; i < s->dim; i++)
+            for (j = 0; j < s->dim; j++)
+                if (solved)
                     if (cell_v_count(&s->values[i][j]) != 1) {
+                        #pragma omp critical
                         solved = 0;
-                        break;
                     }
-        if (solved) {
-            #pragma omp critical
-            {
-                s->sol_count++;
-                return SUDOKU_SOLVE_STRATEGY == SUDOKU_SOLVE;
-            }
-        }
     }
 
-        //ok, there is still some work to be done
-        int min = INT_MAX;
-        int minI = -1;
-        int minJ = -1;
-        int ret = 0;
+    if (solved) {
+        s->sol_count++;
+        return SUDOKU_SOLVE_STRATEGY == SUDOKU_SOLVE;
+    }
 
-    //  #pragma omp parallel
-    //  {
+    //ok, there is still some work to be done
+    int min = INT_MAX;                                                                                                  
+    int minI = -1;
+    int minJ = -1;
+    int ret = 0;
 
-    //  }   
-        cell_v **values_bkp = malloc (sizeof (cell_v *) * s->dim);
-        for (i = 0; i < s->dim; i++)
-            values_bkp[i] = malloc (sizeof (cell_v) * s->dim);
-        
+
+    cell_v **values_bkp = malloc (sizeof (cell_v *) * s->dim);
+    for (i = 0; i < s->dim; i++)
+        values_bkp[i] = malloc (sizeof (cell_v) * s->dim);
+    
+    
+    // #pragma omp parallel
+    // { 
+    //     int temp_min = min;
+    //     int temp_minI = minI;
+    //     int temp_minj = minJ;
+
+        // #pragma omp for collapse(2)
         for (i = 0; i < s->dim; i++) 
             for (j = 0; j < s->dim; j++) {
                 int used = cell_v_count(&s->values[i][j]);
+                // #pragma omp critical
                 if (used > 1 && used < min) {
-                    #pragma omp critical
-                    {
-                        min = used;
-                        minI = i;
-                        minJ = j;
-                    }
+                    min = used;
+                    minI = i;
+                    minJ = j;
                 }
             }
-        
-        for (k = 1; k <= s->dim; k++) {
-            if (cell_v_get(&s->values[minI][minJ], k))  {
-                for (i = 0; i < s->dim; i++)
+    // }
+
+    for (k = 1; k <= s->dim; k++) {
+        if (cell_v_get(&s->values[minI][minJ], k))  {
+        #pragma omp parallel for collapse(2)
+            for (i = 0; i < s->dim; i++)
+                for (j = 0; j < s->dim; j++)
+                    values_bkp[i][j] = s->values[i][j];
+            
+            if (search (s, assign(s, minI, minJ, k))) {
+                ret = 1;
+                goto FR_RT;
+            } else {
+                #pragma omp parallel for collapse(2)
+                for (i = 0; i < s->dim; i++) 
                     for (j = 0; j < s->dim; j++)
-                        values_bkp[i][j] = s->values[i][j];
-                
-                if (search (s, assign(s, minI, minJ, k))) {
-                    ret = 1;
-                    goto FR_RT;
-                } else {
-                    for (i = 0; i < s->dim; i++) 
-                        for (j = 0; j < s->dim; j++)
-                            s->values[i][j] = values_bkp[i][j];
-                }
+                        s->values[i][j] = values_bkp[i][j];
             }
         }
+    }
         
 
     FR_RT:
