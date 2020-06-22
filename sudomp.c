@@ -269,12 +269,14 @@ static int search (sudoku *s, int status) {
     int i, j, k;
     int solved = 1;
 
-    for (i = 0; solved && i < s->dim; i++) 
-        for (j = 0; j < s->dim; j++) 
-            if (cell_v_count(&s->values[i][j]) != 1) {
-                solved = 0;
-                break;
-            }
+    #pragma omp parallel for lastprivate(solved)
+    for (i = 0;i < s->dim; i++) 
+        if (solved){
+                    for (j = 0; j < s->dim; j++) 
+                        if (cell_v_count(&s->values[i][j]) != 1) {
+                            solved = 0;
+                            // break;
+                        }}
     if (solved) {
         s->sol_count++;
         return SUDOKU_SOLVE_STRATEGY == SUDOKU_SOLVE;
@@ -290,7 +292,6 @@ static int search (sudoku *s, int status) {
     int minJ = -1;
     int ret = 0;
     
-    #pragma omp for lastprivate(min, minI, minJ) collapse(2)
     for (i = 0; i < s->dim; i++) 
         for (j = 0; j < s->dim; j++) {
             int used = cell_v_count(&s->values[i][j]);
@@ -300,15 +301,18 @@ static int search (sudoku *s, int status) {
                 minJ = j;
             }
         }
-    
-    #pragma omp task
+
+   
+
     for (k = 1; k <= s->dim; k++) {
         if (cell_v_get(&s->values[minI][minJ], k))  {
             for (i = 0; i < s->dim; i++)
                 for (j = 0; j < s->dim; j++)
                     values_bkp[i][j] = s->values[i][j];
-            
-            if (search (s, assign(s, minI, minJ, k))) {
+            int status;
+            status = search (s, assign(s, minI, minJ, k));
+
+            if (status) {
                 ret = 1;
                 goto FR_RT;
             } else {
@@ -329,11 +333,11 @@ static int search (sudoku *s, int status) {
 
 int solve(sudoku *s) {
     int awnser;
-    #pragma omp parallel
-    {
-        #pragma omp single
+    // #pragma omp parallel
+    // {
+    //     #pragma omp single
         awnser = search(s, 1);
-    }
+    // }
     return awnser;
 }
 
