@@ -280,17 +280,17 @@ static int search (sudoku *s, int status) {
         return SUDOKU_SOLVE_STRATEGY == SUDOKU_SOLVE;
     }
 
+    cell_v **values_bkp = malloc (sizeof (cell_v *) * s->dim);
+    for (i = 0; i < s->dim; i++)
+        values_bkp[i] = malloc (sizeof (cell_v) * s->dim);
+    
     //ok, there is still some work to be done
     int min = INT_MAX;
     int minI = -1;
     int minJ = -1;
     int ret = 0;
     
-    cell_v **values_bkp = malloc (sizeof (cell_v *) * s->dim);
-    for (i = 0; i < s->dim; i++)
-        values_bkp[i] = malloc (sizeof (cell_v) * s->dim);
-    
-    #pragma omp for lastprivate(min, minI, minJ)
+    #pragma omp for lastprivate(min, minI, minJ) collapse(2)
     for (i = 0; i < s->dim; i++) 
         for (j = 0; j < s->dim; j++) {
             int used = cell_v_count(&s->values[i][j]);
