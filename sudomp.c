@@ -269,14 +269,13 @@ static int search (sudoku *s, int status) {
     int i, j, k;
     int solved = 1;
 
-    #pragma omp parallel for lastprivate(solved)
-    for (i = 0;i < s->dim; i++) 
-        if (solved){
-                    for (j = 0; j < s->dim; j++) 
-                        if (cell_v_count(&s->values[i][j]) != 1) {
-                            solved = 0;
-                            // break;
-                        }}
+    for (i = 0; solved && i < s->dim; i++) 
+    	for (j = 0; j < s->dim; j++) 
+		if (cell_v_count(&s->values[i][j]) != 1) {
+			solved = 0;
+			break;
+		}
+
     if (solved) {
         s->sol_count++;
         return SUDOKU_SOLVE_STRATEGY == SUDOKU_SOLVE;
@@ -309,9 +308,18 @@ static int search (sudoku *s, int status) {
             for (i = 0; i < s->dim; i++)
                 for (j = 0; j < s->dim; j++)
                     values_bkp[i][j] = s->values[i][j];
-            int status;
-            status = search (s, assign(s, minI, minJ, k));
-
+    	    
+	    int status
+	    #pragma omp parallel
+	    {
+		#pragma omp single
+		{
+			#pragma omp task
+            		status = search (s, assign(s, minI, minJ, k));
+	    		#pragma omp taskwait
+	   	} 
+	   } 
+	   #pragma omp taskwait
             if (status) {
                 ret = 1;
                 goto FR_RT;
