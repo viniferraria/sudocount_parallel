@@ -9,7 +9,10 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "/home/elliot/Projects/C/Parallel/sudokount/sudomp",
-            "args": ["<sudokount1.in"],
+            "args": [
+                "<sudokount1.in",
+                "-exec info registers"
+            ],
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",
             "environment": [],

@@ -270,12 +270,16 @@ static int search (sudoku *s, int status) {
     int i, j, k;
     int solved = 1;
 
-    for (i = 0; solved && i < s->dim; i++) 
-    	for (j = 0; j < s->dim; j++) 
-    		if (cell_v_count(&s->values[i][j]) != 1) {
-    			solved = 0;
-    			break;
-    		}
+    #pragma omp for    
+    for (i = 0; i < s->dim; i++)
+        if (!solved)
+            continue;
+        else
+            for (j = 0; j < s->dim; j++) 
+                if (cell_v_count(&s->values[i][j]) != 1) {
+                    solved = 0;
+                    break;
+                }
 
     if (solved) {
         s->sol_count++;
@@ -285,7 +289,6 @@ static int search (sudoku *s, int status) {
     cell_v **values_bkp = malloc (sizeof (cell_v *) * s->dim);
     for (i = 0; i < s->dim; i++)
         values_bkp[i] = malloc (sizeof (cell_v) * s->dim);
-    
     
     //ok, there is still some work to be done
     int min = INT_MAX;
@@ -303,18 +306,18 @@ static int search (sudoku *s, int status) {
             }
         }
 
-    #pragma omp task firstprivate(s, min, minI, minJ, values_bkp) shared(ret)
-    for (k = 1; k <= s->dim; k++) {
+    for (k = 1; k <= s->dim; k++) {        
         if (cell_v_get(&s->values[minI][minJ], k))  {
             for (i = 0; i < s->dim; i++)
                 for (j = 0; j < s->dim; j++)
                     values_bkp[i][j] = s->values[i][j];
             int status;
+            #pragma omp task firstprivate(s, min, minI, minJ, values_bkp) shared(ret)
             status = search(s, assign(s, minI, minJ, k));
+            #pragma omp taskwait
             if (status) {
-                // #pragma omp critical
                 ret = 1;
-                break;
+                goto FR_RT;
             } else {
                 for (i = 0; i < s->dim; i++) 
                     for (j = 0; j < s->dim; j++)
@@ -322,8 +325,8 @@ static int search (sudoku *s, int status) {
             }
         }
     }
-    #pragma omp taskwait
-    
+
+    FR_RT:
     for (i = 0; i < s->dim; i++)
         free(values_bkp[i]);
     free (values_bkp);
@@ -335,8 +338,11 @@ int solve(sudoku *s) {
     int anwser;
     #pragma omp parallel
     {
-        #pragma omp master
-        anwser = search(s, 1);
+        #pragma omp single
+        {
+            fprintf(stdout, "max threads: %d\n", omp_get_max_threads());
+            anwser = search(s, 1);
+        }
     }
     return anwser;
 }
